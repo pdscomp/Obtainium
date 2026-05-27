@@ -37,6 +37,7 @@ import 'package:obtainium/providers/source_provider.dart';
 import 'package:http/http.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter_archive/flutter_archive.dart';
+import 'package:archive/archive.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_storage/shared_storage.dart' as saf;
 import 'package:shizuku_apk_installer/shizuku_apk_installer.dart';
@@ -83,7 +84,7 @@ class DownloadedApk {
   DownloadedApk(this.appId, this.file);
 }
 
-enum DownloadedDirType { XAPK, ZIP }
+enum DownloadedDirType { XAPK, ZIP, TARBALL }
 
 class DownloadedDir {
   String appId;
@@ -706,20 +707,29 @@ class AppsProvider with ChangeNotifier {
         notificationsProvider?.notify(notif);
       }
       PackageInfo? newInfo;
+      var originalAssetName = app.apkUrls[app.preferredApkIndex].key.toLowerCase();
       var isAPK = downloadedFile.path.toLowerCase().endsWith('.apk');
       var isXAPK = downloadedFile.path.toLowerCase().endsWith('.xapk');
+      var isTarball = originalAssetName.endsWith('.tar.gz') ||
+          originalAssetName.endsWith('.tgz') ||
+          originalAssetName.endsWith('.tar.bz2') ||
+          originalAssetName.endsWith('.tar.xz');
       Directory? apkDir;
       if (isAPK) {
         newInfo = await pm.getPackageArchiveInfo(
           archiveFilePath: downloadedFile.path,
         );
       } else {
-        // Assume XAPK or ZIP
+        // Assume XAPK, ZIP, or tarball
         String apkDirPath = '${downloadedFile.path}-dir';
-        await unzipFile(downloadedFile.path, '${downloadedFile.path}-dir');
+        if (isTarball) {
+          await extractTarballFile(downloadedFile.path, apkDirPath);
+        } else {
+          await unzipFile(downloadedFile.path, apkDirPath);
+        }
         apkDir = Directory(apkDirPath);
         var apks = apkDir
-            .listSync()
+            .listSync(recursive: true)
             .where((e) => e.path.toLowerCase().endsWith('.apk'))
             .toList();
 
@@ -735,9 +745,14 @@ class AppsProvider with ChangeNotifier {
           apks = [temp!, ...apks];
         }
 
-        if (app.additionalSettings['zippedApkFilterRegEx']?.isNotEmpty ==
-            true) {
-          var reg = RegExp(app.additionalSettings['zippedApkFilterRegEx']);
+        String? filterRegEx;
+        if (isTarball && app.additionalSettings['tarballedApkFilterRegEx']?.isNotEmpty == true) {
+          filterRegEx = app.additionalSettings['tarballedApkFilterRegEx'];
+        } else if (!isTarball && app.additionalSettings['zippedApkFilterRegEx']?.isNotEmpty == true) {
+          filterRegEx = app.additionalSettings['zippedApkFilterRegEx'];
+        }
+        if (filterRegEx != null) {
+          var reg = RegExp(filterRegEx);
           apks.removeWhere((apk) {
             var shouldDelete = !reg.hasMatch(apk.uri.pathSegments.last);
             if (shouldDelete) {
@@ -788,11 +803,19 @@ class AppsProvider with ChangeNotifier {
       if (isAPK) {
         return DownloadedApk(app.id, downloadedFile);
       } else {
+        DownloadedDirType dirType;
+        if (isXAPK) {
+          dirType = DownloadedDirType.XAPK;
+        } else if (isTarball) {
+          dirType = DownloadedDirType.TARBALL;
+        } else {
+          dirType = DownloadedDirType.ZIP;
+        }
         return DownloadedDir(
           app.id,
           downloadedFile,
           apkDir!,
-          isXAPK ? DownloadedDirType.XAPK : DownloadedDirType.ZIP,
+          dirType,
         );
       }
     } finally {
@@ -889,6 +912,34 @@ class AppsProvider with ChangeNotifier {
       zipFile: File(filePath),
       destinationDir: Directory(destinationPath),
     );
+  }
+
+  Future<void> extractTarballFile(String filePath, String destinationPath) async {
+    final bytes = await File(filePath).readAsBytes();
+    List<int> decompressed;
+    final lowerPath = filePath.toLowerCase();
+    if (lowerPath.endsWith('.tar.gz') || lowerPath.endsWith('.tgz')) {
+      decompressed = GZipDecoder().decodeBytes(bytes);
+    } else if (lowerPath.endsWith('.tar.bz2')) {
+      decompressed = BZip2Decoder().decodeBytes(bytes);
+    } else if (lowerPath.endsWith('.tar.xz')) {
+      decompressed = XzDecoder().decodeBytes(bytes);
+    } else {
+      decompressed = bytes;
+    }
+    final archive = TarDecoder().decodeBytes(decompressed);
+    final destDir = Directory(destinationPath);
+    if (!destDir.existsSync()) {
+      destDir.createSync(recursive: true);
+    }
+    for (final file in archive.files) {
+      if (file.isFile) {
+        final outPath = '${destDir.path}/${file.name}';
+        final outFile = File(outPath);
+        outFile.createSync(recursive: true);
+        outFile.writeAsBytesSync(file.content as List<int>);
+      }
+    }
   }
 
   Future<bool> installApkDir(
