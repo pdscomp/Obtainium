@@ -37,7 +37,7 @@ import 'package:obtainium/providers/source_provider.dart';
 import 'package:http/http.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter_archive/flutter_archive.dart';
-import 'package:archive/archive.dart';
+import 'package:archive/archive.dart' as archive;
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_storage/shared_storage.dart' as saf;
 import 'package:shizuku_apk_installer/shizuku_apk_installer.dart';
@@ -919,20 +919,20 @@ class AppsProvider with ChangeNotifier {
     List<int> decompressed;
     final lowerPath = filePath.toLowerCase();
     if (lowerPath.endsWith('.tar.gz') || lowerPath.endsWith('.tgz')) {
-      decompressed = GZipDecoder().decodeBytes(bytes);
+      decompressed = archive.GZipDecoder().decodeBytes(bytes);
     } else if (lowerPath.endsWith('.tar.bz2')) {
-      decompressed = BZip2Decoder().decodeBytes(bytes);
+      decompressed = archive.BZip2Decoder().decodeBytes(bytes);
     } else if (lowerPath.endsWith('.tar.xz')) {
-      decompressed = XzDecoder().decodeBytes(bytes);
+      decompressed = archive.XZDecoder().decodeBytes(bytes);
     } else {
       decompressed = bytes;
     }
-    final archive = TarDecoder().decodeBytes(decompressed);
+    final tarArchive = archive.TarDecoder().decodeBytes(decompressed);
     final destDir = Directory(destinationPath);
     if (!destDir.existsSync()) {
       destDir.createSync(recursive: true);
     }
-    for (final file in archive.files) {
+    for (final file in tarArchive.files) {
       if (file.isFile) {
         final outPath = '${destDir.path}/${file.name}';
         final outFile = File(outPath);
