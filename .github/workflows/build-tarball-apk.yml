@@ -23,27 +23,14 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Write signing keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > obtainium-test.keystore
-
-      - name: Write key.properties
-        run: |
-          cat > android/key.properties << 'EOF'
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          storeFile=../../obtainium-test.keystore
-          EOF
-
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build signed release APK (normal flavor)
-        run: flutter build apk --release --flavor normal
+      - name: Build debug APK (auto-signed, installable)
+        run: flutter build apk --debug
 
-      - name: Upload signed APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: obtainium-tarball-signed-apk
-          path: build/app/outputs/flutter-apk/app-normal-release.apk
+          name: obtainium-tarball-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
