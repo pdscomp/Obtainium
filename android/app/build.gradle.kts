@@ -73,7 +73,7 @@ android {
             storeFile = keystoreProperties["storeFile"]?.let { file(it) }
             storePassword = keystoreProperties["storePassword"] as String?
         }
-        create("debug") {
+        create("sharedDebug") {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
             storeFile = file("debug.keystore")
@@ -115,7 +115,7 @@ android {
         getByName("debug") {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("sharedDebug")
         }
     }
 }
