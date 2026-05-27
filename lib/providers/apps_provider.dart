@@ -917,16 +917,22 @@ class AppsProvider with ChangeNotifier {
   Future<void> extractTarballFile(String filePath, String destinationPath) async {
     final bytes = await File(filePath).readAsBytes();
     List<int> decompressed;
-    final lowerPath = filePath.toLowerCase();
-    if (lowerPath.endsWith('.tar.gz') || lowerPath.endsWith('.tgz')) {
+
+    // Detect compression by magic bytes (file extension may be wrong after download)
+    if (bytes.length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
+      // gzip
       decompressed = archive.GZipDecoder().decodeBytes(bytes);
-    } else if (lowerPath.endsWith('.tar.bz2')) {
+    } else if (bytes.length >= 3 && bytes[0] == 0x42 && bytes[1] == 0x5a && bytes[2] == 0x68) {
+      // bzip2 ('BZh')
       decompressed = archive.BZip2Decoder().decodeBytes(bytes);
-    } else if (lowerPath.endsWith('.tar.xz')) {
+    } else if (bytes.length >= 6 && bytes[0] == 0xfd && bytes[1] == 0x37 && bytes[2] == 0x7a && bytes[3] == 0x58 && bytes[4] == 0x5a && bytes[5] == 0x00) {
+      // xz
       decompressed = archive.XZDecoder().decodeBytes(bytes);
     } else {
+      // Assume uncompressed tar
       decompressed = bytes;
     }
+
     final tarArchive = archive.TarDecoder().decodeBytes(decompressed);
     final destDir = Directory(destinationPath);
     if (!destDir.existsSync()) {
