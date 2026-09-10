@@ -87,6 +87,13 @@ class AppInfoDialog extends StatelessWidget {
   }
 }
 
+/// Derives an APK filter regex from [assetName] by escaping it and replacing
+/// numeric (version-like) runs with a wildcard, so it keeps matching future
+/// releases of the same variant (e.g. arch or "-noicon-" builds).
+String deriveApkFilterRegex(String assetName) => RegExp.escape(
+  assetName,
+).replaceAllMapped(RegExp(r'\d+(?:\.\d+)*'), (_) => r'\d[\d.]*');
+
 class AppFilePicker extends StatefulWidget {
   const AppFilePicker({
     super.key,
@@ -108,13 +115,44 @@ class AppFilePicker extends StatefulWidget {
 class _AppFilePickerState extends State<AppFilePicker> {
   MapEntry<String, String>? fileUrl;
 
+  List<MapEntry<String, String>> get urlsToSelectFrom => widget.pickAnyAsset
+      ? [...widget.app.apkUrls, ...widget.app.otherAssetUrls]
+      : widget.app.apkUrls;
+
+  /// Saves an auto-derived [apkFilterRegEx] for the selected file so future
+  /// updates pick it automatically, then continues with the install.
+  Future<void> _useAlways() async {
+    final selected = fileUrl!;
+    final regex = deriveApkFilterRegex(selected.key);
+    // Fail loudly if the pattern doesn't uniquely match the selected file.
+    final matches = urlsToSelectFrom
+        .where((e) => RegExp(regex).hasMatch(e.key))
+        .toList();
+    if (matches.length != 1 || matches.first.key != selected.key) {
+      showError(ObtainiumError(tr('couldNotDeriveApkFilter')), context);
+      return;
+    }
+    final appsProvider = context.read<AppsProvider>();
+    await appsProvider.saveApps([
+      widget.app.copyWith(
+        additionalSettings: {
+          ...widget.app.additionalSettings,
+          'apkFilterRegEx': regex,
+          'invertAPKFilter': false,
+        },
+      ),
+    ]);
+    if (!mounted) return;
+    context.read<SettingsProvider>().selectionClick();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(tr('apkFilterSavedX', args: [regex]))),
+    );
+    Navigator.of(context).pop(selected);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isTV = context.read<SettingsProvider>().isTV;
-    var urlsToSelectFrom = widget.app.apkUrls;
-    if (widget.pickAnyAsset) {
-      urlsToSelectFrom = [...urlsToSelectFrom, ...widget.app.otherAssetUrls];
-    }
     fileUrl ??=
         widget.initVal ??
         (urlsToSelectFrom.isNotEmpty ? urlsToSelectFrom.first : null);
@@ -194,6 +232,10 @@ class _AppFilePickerState extends State<AppFilePicker> {
             Navigator.of(context).pop(null);
           },
           child: Text(tr('cancel')),
+        ),
+        TextButton(
+          onPressed: fileUrl != null ? _useAlways : null,
+          child: Text(tr('useAlways')),
         ),
         FilledButton(
           autofocus: isTV && urlsToSelectFrom.isEmpty,

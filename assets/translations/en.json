@@ -21,6 +21,7 @@
     },
     "app": "App",
     "appAlreadyAdded": "App already added",
+    "apkFilterSavedX": "Filter saved for future updates: {}",
     "appHasMoreThanOnePackage": "{} has more than one package:",
     "appId": "App ID",
     "appIdMismatch": "Downloaded package ID does not match existing app ID",
@@ -117,6 +118,7 @@
     "coolApk": "CoolApk",
     "copiedToClipboard": "Copied to clipboard",
     "copyToClipboard": "Copy to clipboard",
+    "couldNotDeriveApkFilter": "Could not derive a filter that uniquely matches this file",
     "couldNotGetIdFromApk": "Could not get ID from APK",
     "crowdsourcedConfigsLabel": "Crowdsourced app configurations (use at your own risk)",
     "crowdsourcedConfigsShort": "Crowdsourced app configurations",
@@ -428,6 +430,7 @@
         "other": "{} URLs"
     },
     "urlMatchesNoSource": "URL does not match a known source",
+    "useAlways": "Always",
     "useBlackTheme": "Use pure black dark theme",
     "useFirstApkOfVersion": "Auto-select first of multiple APKs",
     "useLatestAssetDateAsReleaseDate": "Use latest asset upload as release date",
